@@ -26,7 +26,6 @@ public class GitHubService {
     private final static Logger LOGGER = Logger.getLogger(Main.class.getName());
 
 
-
     public static void performGitHubAPICallAndWriteToFile(String username, String maxNumOfResults) {
         try {
             int maxRows = Integer.parseInt(maxNumOfResults);
@@ -75,6 +74,7 @@ public class GitHubService {
         while (reader != null && ((responseLine = reader.readLine()) != null)) {
             sb.append(responseLine);
         }
+        reader.close();
         return new JSONTokener(sb.toString()).nextValue();
     }
 

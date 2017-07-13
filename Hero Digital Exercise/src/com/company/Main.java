@@ -1,7 +1,5 @@
 package com.company;
 
-import org.json.JSONArray;
-
 import java.util.Scanner;
 
 public class Main {
