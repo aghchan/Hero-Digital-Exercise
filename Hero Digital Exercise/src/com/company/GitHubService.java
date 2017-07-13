@@ -25,71 +25,80 @@ public class GitHubService {
     private static final int PADDING_SPACES = 10;
     private final static Logger LOGGER = Logger.getLogger(Main.class.getName());
 
+
+
+    public static void performGitHubAPICallAndWriteToFile(String username, String maxNumOfResults) {
+        try {
+            int maxRows = Integer.parseInt(maxNumOfResults);
+            Object json = getJSONResponseFromAPI(new URL(HOSTNAME.concat(username).concat(CONTEXT)));
+            if (json != null && json instanceof JSONArray) {
+                writeFieldsToFile((JSONArray) json, maxRows);
+            } else {
+                LOGGER.log(Level.WARNING, "Issue with GitHub API response, did not write to file");
+            }
+        } catch(NumberFormatException nfEx) {
+            LOGGER.log(Level.SEVERE, "Exception occurred, number of results to display is not an integer", nfEx);
+        } catch(FileNotFoundException fnfEx) {
+            LOGGER.log(Level.SEVERE, "Exception occurred, issue performing GitHub API call", fnfEx);
+        } catch(Exception ex) {
+            LOGGER.log(Level.SEVERE, "Exception occurred", ex);
+        }
+    }
+
+    private static void writeFieldsToFile(JSONArray jsonArray, int maxNumberOfRows) {
+        try {
+            int jsonSize = jsonArray.length();
+            int maxRows = jsonSize > maxNumberOfRows  ? maxNumberOfRows : jsonSize;
+            PrintWriter writer = new PrintWriter(OUTPUT_FILE, CHARSET);
+            HashMap<String, Integer> columnWidths = getColumnWidthHash(maxRows, jsonArray);
+
+            for (int r = 0; r < maxRows; r++) {
+                JSONObject jsonObject = jsonArray.getJSONObject(r);
+                for (int c = 0; c < ColumnNames.values().length; c++) {
+                    String columnNameValue = ColumnNames.values()[c].getColumnNameValue(jsonObject);
+                    writer.printf(printFormatting(columnWidths, ColumnNames.values()[c].getName()), columnNameValue);
+                }
+                writer.println();
+            }
+            writer.close();
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Exception occured", ex);
+        }
+    }
+
     private static Object getJSONResponseFromAPI(URL url) throws Exception {
         HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
         BufferedReader reader = new BufferedReader(new InputStreamReader(httpURLConnection.getInputStream()));
         StringBuilder sb = new StringBuilder();
         String responseLine;
+
         while (reader != null && ((responseLine = reader.readLine()) != null)) {
             sb.append(responseLine);
         }
         return new JSONTokener(sb.toString()).nextValue();
     }
 
-    public static void performGitHubAPICall(String username, String maxNumOfResults) {
-        try {
-            Object json = getJSONResponseFromAPI(new URL(HOSTNAME.concat(username).concat(CONTEXT)));
-            if (json instanceof JSONArray) {
-                int jsonSize = ((JSONArray) json).length();
-                int maxNum = Integer.parseInt(maxNumOfResults);
-                int maxRows = jsonSize > maxNum ? maxNum : jsonSize;
-                PrintWriter writer = new PrintWriter(OUTPUT_FILE, CHARSET);
-                String[] fileValues = new String[maxRows * ColumnNames.values().length];
-                HashMap<String, Integer> valueLengths = new HashMap<>();
-                storeJSONAndCheckSizeForAllColumns(maxRows, fileValues, valueLengths, (JSONArray) json);
-                writeFieldsToFile(writer, valueLengths, fileValues, maxRows);
-                writer.close();
-            } else {
-                LOGGER.log(Level.WARNING, "Did not perform GitHub User Repo API Call");
-            }
-        } catch(FileNotFoundException fnfEx) {
-            LOGGER.log(Level.SEVERE, "Exception occured, issue performing API call", fnfEx);
-        } catch(NumberFormatException nfEx) {
-            LOGGER.log(Level.SEVERE, "Exception occured, number of results to display is not an integer", nfEx);
-        } catch(Exception ex) {
-            LOGGER.log(Level.SEVERE, "Exception occured", ex);
-        }
-    }
-
     private static String printFormatting(HashMap<String, Integer> formattingSpaces, String columnName) {
         return "%-".concat(Integer.toString(formattingSpaces.get(columnName) + PADDING_SPACES)).concat("s");
     }
 
-    private static void storeJSONAndCheckSizeForAllColumns(int maxRows, String[] fileValues, HashMap<String, Integer> valueLengths, JSONArray jsonArray) {
+    private static HashMap<String, Integer> getColumnWidthHash(int maxRows, JSONArray jsonArray) {
+        HashMap<String, Integer> columnWidths = new HashMap<>();
+        int totalNumOfColumns = ColumnNames.values().length;
         for (int r = 0; r < maxRows; r++) {
             JSONObject jsonObject = jsonArray.getJSONObject(r);
-            int totalNumOfColumns = ColumnNames.values().length;
             for (int c = 0; c < totalNumOfColumns; c++) {
-                ColumnNames columnName = ColumnNames.values()[c];
-                String nestedEntry = columnName.getNestedEntry();
-                String columnNameValue = columnName.getName();
-                int arrayIndex = r * totalNumOfColumns + c;
-                fileValues[arrayIndex] = nestedEntry.isEmpty() ? (String) jsonObject.get(columnNameValue)
-                        : (String) jsonObject.getJSONObject(nestedEntry).get(columnNameValue);
-                if (valueLengths.get(columnNameValue) == null || fileValues[arrayIndex].length() > valueLengths.get(columnNameValue)) {
-                    valueLengths.put(columnNameValue, fileValues[arrayIndex].length());
+                String columnName = ColumnNames.values()[c].getName();
+                String columnNameValue = ColumnNames.values()[c].getColumnNameValue(jsonObject);
+                int columnNameValueLength = columnNameValue.length();
+
+                if (columnWidths.get(columnName) == null || columnWidths.get(columnName) < columnNameValueLength) {
+                    columnWidths.put(columnName, columnNameValueLength);
                 }
             }
         }
+        return columnWidths;
     }
 
-    private static void writeFieldsToFile(PrintWriter writer, HashMap<String, Integer> valueLengths, String[] fileValues, int maxRows) {
-        int totalNumOfColumns = ColumnNames.values().length;
-        for (int i = 0; i < maxRows; i++) {
-            for (int j = 0; j < totalNumOfColumns; j++) {
-                writer.printf(printFormatting(valueLengths, ColumnNames.values()[j].getName()), fileValues[totalNumOfColumns * i + j]);
-            }
-            writer.println();
-        }
-    }
+
 }

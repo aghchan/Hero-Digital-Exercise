@@ -1,5 +1,7 @@
 package com.company;
 
+import org.json.JSONObject;
+
 /**
  * Created by Alan on 7/11/2017.
  */
@@ -21,7 +23,8 @@ public enum ColumnNames {
         return name;
     }
 
-    public String getNestedEntry() {
-        return nestedEntry;
+    public String getColumnNameValue(JSONObject jsonObject) {
+        return nestedEntry.isEmpty() ? (String) jsonObject.get(name)
+                : (String) jsonObject.getJSONObject(nestedEntry).get(name);
     }
 }
